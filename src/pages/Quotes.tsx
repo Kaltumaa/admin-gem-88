@@ -1,9 +1,16 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
+import { Label } from "@/components/ui/label";
+import {
   Table,
   TableBody,
   TableCell,
@@ -11,119 +18,227 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { 
-  Search, 
-  Filter, 
-  Download, 
-  Eye, 
-  Edit, 
-  MoreHorizontal,
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { toast } from "@/components/ui/use-toast";
+import {
+  Search,
+  Download,
+  Eye,
+  Edit,
+  Trash2,
   Plus,
-  Calendar,
 } from "lucide-react";
+import { getAllQuotes, createQuote, updateQuote, deleteQuote } from "@/api";
+import { cn } from "@/lib/utils";
+import { markNotificationAsSeen } from "../api"; // your function
+
+// ✅ Types
+export type Quote = {
+  id: number;
+  companyName: string;
+  email: string;
+  phone: string;
+  countryFrom: string;
+  countryTo: string;
+  freightType: string;
+  containerType: string;
+  specialRequirement: string;
+  createdAt: string;
+  updatedAt: string;
+  status: string;
+  state: string; // unseen or seen
+};
+
+type QuoteForm = Omit<Quote, "id" | "createdAt" | "updatedAt">;
 
 const Quotes = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const quotes = [
-    {
-      id: "QR-001",
-      client: "Acme Corporation",
-      email: "contact@acme.com",
-      service: "Web Development",
-      description: "Complete e-commerce website with payment integration",
-      value: "$5,200",
-      status: "pending",
-      date: "2024-01-15",
-      priority: "high",
-    },
-    {
-      id: "QR-002",
-      client: "TechStart Inc",
-      email: "hello@techstart.com",
-      service: "Mobile Application",
-      description: "iOS and Android app for food delivery service",
-      value: "$12,500",
-      status: "approved",
-      date: "2024-01-14",
-      priority: "medium",
-    },
-    {
-      id: "QR-003",
-      client: "Global Solutions",
-      email: "info@globalsolutions.com",
-      service: "Digital Marketing",
-      description: "SEO optimization and social media management",
-      value: "$3,800",
-      status: "reviewing",
-      date: "2024-01-13",
-      priority: "low",
-    },
-    {
-      id: "QR-004",
-      client: "Innovation Labs",
-      email: "team@innovationlabs.com",
-      service: "UI/UX Design",
-      description: "Complete redesign of SaaS dashboard interface",
-      value: "$7,900",
-      status: "rejected",
-      date: "2024-01-12",
-      priority: "medium",
-    },
-    {
-      id: "QR-005",
-      client: "Future Enterprises",
-      email: "contact@future.com",
-      service: "Cloud Migration",
-      description: "Migrate legacy systems to AWS cloud infrastructure",
-      value: "$15,600",
-      status: "approved",
-      date: "2024-01-11",
-      priority: "high",
-    },
-  ];
+  // Modal states
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+
+  // Form + selected
+  const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
+  const [formData, setFormData] = useState<QuoteForm>({
+    companyName: "",
+    email: "",
+    phone: "",
+    countryFrom: "",
+    countryTo: "",
+    freightType: "",
+    containerType: "",
+    specialRequirement: "",
+    status: "Pending",
+  });
+
+  useEffect(() => {
+    fetchQuotes();
+  }, []);
+
+  const fetchQuotes = async () => {
+    try {
+      setLoading(true);
+      const data = await getAllQuotes();
+      if (data) setQuotes(data);
+    } catch (err) {
+      console.error("Failed to fetch quotes", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Handlers
+  const handleAdd = async () => {
+    try {
+      await createQuote(formData);
+      toast({
+        title: "Success",
+        description: "Quote added successfully!",
+        variant: "success",
+      });
+      setIsAddOpen(false);
+      fetchQuotes();
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Error",
+        description: "Failed to add quote.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!selectedQuote) return;
+    try {
+      await updateQuote(selectedQuote.id, formData);
+      toast({
+        title: "Success",
+        description: "Quote updated successfully!",
+        variant: "success",
+      });
+      setIsEditOpen(false);
+      fetchQuotes();
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Error",
+        description: "Failed to update quote.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this quote?")) return;
+    try {
+      await deleteQuote(id);
+      toast({
+        title: "Deleted",
+        description: "Quote deleted successfully!",
+        variant: "success",
+      });
+      fetchQuotes();
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Error",
+        description: "Failed to delete quote.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openView = (quote: Quote) => {
+    setSelectedQuote(quote);
+    setIsViewOpen(true);
+  };
+
+  const openEdit = (quote: Quote) => {
+    setSelectedQuote(quote);
+    setFormData({ ...quote });
+    setIsEditOpen(true);
+  };
+
+  // ✅ Filters
+  const filteredQuotes = quotes.filter((quote) => {
+    const term = searchTerm.toLowerCase();
+    return (
+      quote.companyName.toLowerCase().includes(term) ||
+      quote.email.toLowerCase().includes(term) ||
+      quote.phone.toLowerCase().includes(term)
+    );
+  });
+
+  // ✅ Export as CSV
+  const handleExport = () => {
+    if (!quotes.length) return;
+    const headers = [
+      "ID",
+      "Company Name",
+      "Email",
+      "Phone",
+      "Country From",
+      "Country To",
+      "Freight Type",
+      "Container Type",
+      "Special Requirement",
+      "Status",
+      "Created At",
+    ];
+    const rows = quotes.map((q) => [
+      q.id,
+      q.companyName,
+      q.email,
+      q.phone,
+      q.countryFrom,
+      q.countryTo,
+      q.freightType,
+      q.containerType,
+      q.specialRequirement,
+      q.status,
+      new Date(q.createdAt).toLocaleString(),
+    ]);
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "quotes.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "approved":
-        return "bg-success text-success-foreground";
-      case "pending":
-        return "bg-warning text-warning-foreground";
-      case "reviewing":
-        return "bg-accent text-accent-foreground";
-      case "rejected":
-        return "bg-destructive text-destructive-foreground";
+      case "Pending":
+        return "bg-gray-100 text-gray-800";
+      case "Confirmed":
+        return "bg-blue-100 text-blue-800";
+      case "In Transit":
+        return "bg-yellow-100 text-yellow-800";
+      case "Shipped":
+        return "bg-purple-100 text-purple-800";
+      case "Delivered":
+        return "bg-green-100 text-green-800";
+      case "Cancelled":
+        return "bg-red-100 text-red-800";
       default:
-        return "bg-muted text-muted-foreground";
+        return "bg-gray-100 text-gray-800";
     }
   };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high":
-        return "bg-destructive/10 text-destructive border-destructive/20";
-      case "medium":
-        return "bg-warning/10 text-warning border-warning/20";
-      case "low":
-        return "bg-success/10 text-success border-success/20";
-      default:
-        return "bg-muted text-muted-foreground";
-    }
-  };
-
-  const filteredQuotes = quotes.filter(quote =>
-    quote.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    quote.service.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    quote.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -136,11 +251,27 @@ const Quotes = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          <Button variant="outline" size="sm">
+          <Button onClick={handleExport} variant="outline" size="sm">
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
-          <Button className="bg-gradient-primary hover:shadow-glow transition-smooth">
+          <Button
+            className="bg-gradient-primary hover:shadow-glow transition-smooth"
+            onClick={() => {
+              setFormData({
+                companyName: "",
+                email: "",
+                phone: "",
+                countryFrom: "",
+                countryTo: "",
+                freightType: "",
+                containerType: "",
+                specialRequirement: "",
+                status: "Pending",
+              });
+              setIsAddOpen(true);
+            }}
+          >
             <Plus className="w-4 h-4 mr-2" />
             New Quote
           </Button>
@@ -148,124 +279,253 @@ const Quotes = () => {
       </div>
 
       {/* Filters */}
-      <Card className="shadow-custom-md">
+      <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Filter Quotes</CardTitle>
-          </div>
+          <CardTitle>Filter Quotes</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center space-x-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search quotes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Button variant="outline" size="sm">
-              <Filter className="w-4 h-4 mr-2" />
-              Filter
-            </Button>
-            <Button variant="outline" size="sm">
-              <Calendar className="w-4 h-4 mr-2" />
-              Date Range
-            </Button>
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search quotes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
         </CardContent>
       </Card>
 
       {/* Quotes Table */}
-      <Card className="shadow-custom-md">
+      <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">All Quote Requests</CardTitle>
-              <CardDescription>
-                {filteredQuotes.length} of {quotes.length} quotes displayed
-              </CardDescription>
-            </div>
-          </div>
+          <CardTitle>All Quote Requests</CardTitle>
+          <CardDescription>
+            {loading
+              ? "Loading..."
+              : `${filteredQuotes.length} of ${quotes.length} quotes displayed`}
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
+        <CardContent className="overflow-x-auto">
+          <Table className="min-w-[1000px] divide-y divide-gray-200">
+            <TableHeader className="bg-gray-50">
               <TableRow>
-                <TableHead>Quote ID</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Service</TableHead>
-                <TableHead>Value</TableHead>
-                <TableHead>Priority</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-left px-4 py-2 w-6"></TableHead>
+                <TableHead className="text-left px-4 py-2">Company</TableHead>
+                <TableHead className="text-left px-4 py-2">Email</TableHead>
+                <TableHead className="text-left px-4 py-2">Phone</TableHead>
+                <TableHead className="text-left px-4 py-2">From</TableHead>
+                <TableHead className="text-left px-4 py-2">To</TableHead>
+                <TableHead className="text-left px-4 py-2">Freight</TableHead>
+                <TableHead className="text-left px-4 py-2">Status</TableHead>
+                <TableHead className="text-right px-4 py-2">Actions</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {filteredQuotes.map((quote) => (
-                <TableRow key={quote.id} className="hover:bg-muted/50 transition-smooth">
-                  <TableCell className="font-medium">{quote.id}</TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{quote.client}</p>
-                      <p className="text-sm text-muted-foreground">{quote.email}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{quote.service}</p>
-                      <p className="text-sm text-muted-foreground truncate max-w-xs">
-                        {quote.description}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">{quote.value}</TableCell>
-                  <TableCell>
-                    <Badge className={getPriorityColor(quote.priority)}>
-                      {quote.priority}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={getStatusColor(quote.status)}>
-                      {quote.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{quote.date}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>
-                          <Eye className="mr-2 h-4 w-4" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit Quote
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
-                          Delete Quote
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+            <TableBody className="divide-y divide-gray-100">
+              {filteredQuotes.map((quote) => {
+                const isUnseen = quote.state === "unseen";
+
+                const handleRowClick = async () => {
+                  openView(quote);
+
+                  if (isUnseen) {
+                    try {
+                      await markNotificationAsSeen("quote", quote.id);
+                      setQuotes((prev) =>
+                        prev.map((q) =>
+                          q.id === quote.id ? { ...q, state: "seen" } : q
+                        )
+                      );
+                    } catch (err) {
+                      console.error("Failed to mark quote as seen", err);
+                    }
+                  }
+                };
+
+                return (
+                  <TableRow
+                    key={quote.id}
+                    onClick={handleRowClick}
+                    className={cn(
+                      "hover:bg-gray-50 transition-colors cursor-pointer",
+                      isUnseen ? "bg-blue-50 font-medium" : ""
+                    )}
+                  >
+                    <TableCell className="px-4 py-2">
+                      {isUnseen && (
+                        <span className="inline-block w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                      )}
+                    </TableCell>
+                    <TableCell className="px-4 py-2 truncate max-w-[150px]">{quote.companyName}</TableCell>
+                    <TableCell className="px-4 py-2 truncate max-w-[200px]">{quote.email}</TableCell>
+                    <TableCell className="px-4 py-2">{quote.phone}</TableCell>
+                    <TableCell className="px-4 py-2">{quote.countryFrom}</TableCell>
+                    <TableCell className="px-4 py-2">{quote.countryTo}</TableCell>
+                    <TableCell className="px-4 py-2">{quote.freightType}</TableCell>
+                    <TableCell className="px-4 py-2">
+                      <Badge
+                        className={cn(
+                          "px-3 py-1 rounded-full text-sm font-semibold",
+                          getStatusColor(quote.status)
+                        )}
+                      >
+                        {quote.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="px-4 py-2 text-right flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hover:bg-green-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEdit(quote);
+                        }}
+                      >
+                        <Edit className="h-4 w-4 text-green-500" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="hover:bg-red-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(quote.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {/* Add/Edit/View Modals */}
+      {/* Add Modal */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>Add Quote</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <QuoteFormInputs formData={formData} setFormData={setFormData} />
+          </div>
+          <DialogFooter>
+            <Button onClick={handleAdd}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Modal */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>Edit Quote</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <QuoteFormInputs formData={formData} setFormData={setFormData} />
+          </div>
+          <DialogFooter>
+            <Button onClick={handleUpdate}>Update</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Modal */}
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent className="space-y-2">
+          <DialogHeader>
+            <DialogTitle>Quote Details</DialogTitle>
+          </DialogHeader>
+          {selectedQuote && (
+            <div className="space-y-2">
+              <p><strong>Company:</strong> {selectedQuote.companyName}</p>
+              <p><strong>Email:</strong> {selectedQuote.email}</p>
+              <p><strong>Phone:</strong> {selectedQuote.phone}</p>
+              <p><strong>From:</strong> {selectedQuote.countryFrom}</p>
+              <p><strong>To:</strong> {selectedQuote.countryTo}</p>
+              <p><strong>Freight Type:</strong> {selectedQuote.freightType}</p>
+              <p><strong>Container Type:</strong> {selectedQuote.containerType}</p>
+              <p><strong>Special Requirement:</strong> {selectedQuote.specialRequirement}</p>
+              <p><strong>Status:</strong> {selectedQuote.status}</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
+
+// Reusable form inputs
+const QuoteFormInputs = ({ formData, setFormData }: any) => (
+  <>
+    {[
+      { label: "Company Name", key: "companyName", type: "text" },
+      { label: "Email", key: "email", type: "text" },
+      { label: "Phone", key: "phone", type: "text" },
+      { label: "Country From", key: "countryFrom", type: "text" },
+      { label: "Country To", key: "countryTo", type: "text" },
+      { label: "Special Requirement", key: "specialRequirement", type: "text" },
+    ].map((field) => (
+      <div className="space-y-2" key={field.key}>
+        <Label>{field.label}</Label>
+        <Input
+          value={formData[field.key]}
+          onChange={(e) =>
+            setFormData({ ...formData, [field.key]: e.target.value })
+          }
+        />
+      </div>
+    ))}
+
+    {/* Select inputs */}
+    <div className="space-y-2">
+      <Label>Freight Type</Label>
+      <select
+        className="input"
+        value={formData.freightType}
+        onChange={(e) => setFormData({ ...formData, freightType: e.target.value })}
+      >
+        <option value="">Select Freight Type</option>
+        <option value="Sea Freight">Sea Freight</option>
+        <option value="Air Freight">Air Freight</option>
+        <option value="Land Freight">Land Freight</option>
+        <option value="Rail Freight">Rail Freight</option>
+      </select>
+    </div>
+    <div className="space-y-2">
+      <Label>Container Type</Label>
+      <select
+        className="input"
+        value={formData.containerType}
+        onChange={(e) => setFormData({ ...formData, containerType: e.target.value })}
+      >
+        <option value="">Select Container Type</option>
+        <option value="20ft">20ft</option>
+        <option value="40ft">40ft</option>
+        <option value="40ft HC">40ft HC</option>
+      </select>
+    </div>
+    <div className="space-y-2">
+      <Label>Status</Label>
+      <select
+        className="input"
+        value={formData.status}
+        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+      >
+        <option value="Pending">Pending</option>
+        <option value="Confirmed">Confirmed</option>
+        <option value="In Transit">In Transit</option>
+        <option value="Shipped">Shipped</option>
+        <option value="Delivered">Delivered</option>
+        <option value="Cancelled">Cancelled</option>
+      </select>
+    </div>
+  </>
+);
 
 export default Quotes;

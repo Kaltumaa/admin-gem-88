@@ -10,14 +10,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { 
-  LayoutDashboard, 
-  MessageSquare, 
-  Users, 
-  Mail, 
-  Settings,
-  Shield
-} from "lucide-react";
+import { LayoutDashboard, MessageSquare, Users, Mail, Shield, Phone } from "lucide-react";
 
 const menuItems = [
   {
@@ -30,12 +23,11 @@ const menuItems = [
     title: "Quote Requests",
     url: "/quotes",
     icon: MessageSquare,
-    badge: "12",
   },
   {
     title: "Contacts",
     url: "/contacts",
-    icon: Users,
+    icon: Phone,
     badge: null,
   },
   {
@@ -45,18 +37,27 @@ const menuItems = [
     badge: null,
   },
   {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
+    title: "Users",
+    url: "/users",
+    icon: Users,
     badge: null,
+    roles: ["Admin"], // Only show for Admins
   },
 ];
 
 export function AdminSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
-
   const isCollapsed = state === "collapsed";
+
+  // Read role directly from localStorage
+  const role = localStorage.getItem("role");
+
+  // Filter menu items based on role
+  const filteredMenuItems = menuItems.filter((item) => {
+    if (item.roles && role && !item.roles.includes(role)) return false;
+    return true;
+  });
 
   return (
     <Sidebar className={`bg-gradient-sidebar ${isCollapsed ? "w-16" : "w-64"} border-r border-white/10`}>
@@ -82,7 +83,7 @@ export function AdminSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="px-3">
-              {menuItems.map((item) => (
+              {filteredMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
@@ -118,12 +119,12 @@ export function AdminSidebar() {
         <div className="mt-auto p-4 border-t border-white/10">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-accent rounded-full flex items-center justify-center">
-              <span className="text-sm font-medium text-white">A</span>
+              <span className="text-sm font-medium text-white">M</span>
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">Admin User</p>
-                <p className="text-xs text-white/60 truncate">admin@company.com</p>
+                <p className="text-sm font-medium text-white truncate">Management User</p>
+                <p className="text-xs text-white/60 truncate">Welcome to your portal</p>
               </div>
             )}
           </div>
